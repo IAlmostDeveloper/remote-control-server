@@ -6,10 +6,12 @@ from database import DatabaseManager
 from mqttclient import on_disconnect, on_connect, on_message, on_publish
 from connections import mqtt_address, mqtt_port, mqtt_username, mqtt_password
 import secrets
+import re
 
 client = mqtt.Client()
 
 sessionTokens = []
+
 
 def mqttRun():
     client.on_connect = on_connect
@@ -66,6 +68,37 @@ def auth():
     body = request.json
     token = authorizeUser(body['login'], body['password'])
     _response = {'error': '' if token != 0 else 'Incorrect user data', 'token': token}
+    return HTTPResponse(status=200, body=json.dumps(_response))
+
+
+@post('/script')
+def addScript():
+    body = request.json
+    if not sessionTokens.__contains__(body['token']):
+        return HTTPResponse(status=401)
+    split = re.split(';', body['sequence'])
+    isValid = len(split) >= 4 and len(split) % 4 == 0
+    if isValid:
+        DatabaseManager.addScript(body['name'], body['userId'], body['sequence'])
+    _response = {'parsed': split, 'valid': isValid, 'error' : '' if isValid else 'Invalid sequence'}
+    return HTTPResponse(status=200, body=json.dumps(_response))
+
+
+@post('/execute')
+def executeScript():
+    body = request.json
+    sequence = DatabaseManager.getScript(body['id'])
+    split = re.split(';', sequence[0])
+    commands = []
+    for i in range(0, len(split), 4):
+        command = {'id': split[i], 'code': split[i + 1], 'encoding': split[i + 2], 'count': split[i + 3]}
+        commands.append(command)
+    for command in commands:
+        # topic = "remoteControl/devices/{id}/code/{encoding}Controller".format(id=body['id'], encoding=body['encoding'])
+        for i in range(0, int(command['count'])):
+            client.publish("remoteControl/devices/{id}/code/{encoding}Controller"
+                           .format(id=command['id'], encoding=command['encoding']), command['code'])
+    _response = {"sequence": sequence, "commands": commands}
     return HTTPResponse(status=200, body=json.dumps(_response))
 
 

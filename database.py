@@ -13,6 +13,12 @@ class DatabaseManager:
             login text unique,
             password text
             )""")
+            cursor.execute("""create table scripts(
+            id integer primary key,
+            name text,
+            userId integer,
+            sequence text
+            )""")
         conn.commit()
 
     @staticmethod
@@ -25,6 +31,13 @@ class DatabaseManager:
         cursor.execute("insert into users(login, password) "
                        "values ('{login}' , '{password}')"
                        .format(login=login, password=password))
+        conn.commit()
+
+    @staticmethod
+    def addScript(name, userId, sequence):
+        cursor.execute("insert into scripts(name, userId, sequence)"
+                       "values ('{name}', '{userId}', '{sequence}')"
+                       .format(name=name, userId=userId, sequence=sequence))
         conn.commit()
 
     @staticmethod
@@ -62,5 +75,11 @@ class DatabaseManager:
     def getUserId(login):
         cursor.execute("select id from users where login='{login}'"
                        .format(login=login))
+        conn.commit()
+        return cursor.fetchone()
+
+    @staticmethod
+    def getScript(id):
+        cursor.execute("select sequence from scripts where id='{id}'".format(id=id))
         conn.commit()
         return cursor.fetchone()
