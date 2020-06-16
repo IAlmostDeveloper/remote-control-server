@@ -1,24 +1,49 @@
-from bottle import run, request, post, default_app
+from bottle import run, request, response, post, get, default_app, HTTPResponse
 import paho.mqtt.client as mqtt
 import threading
+import json
+from database import DatabaseManager
+from mqttclient import on_disconnect, on_connect, on_message, on_publish
+from connections import mqtt_address, mqtt_port, mqtt_username, mqtt_password
+import secrets
 
+client = mqtt.Client()
+
+sessionTokens = []
 
 def mqttRun():
-    client.connect("xxxxxxxxxx", 1883, 60)
+    client.on_connect = on_connect
+    client.on_disconnect = on_disconnect
+    client.on_message = on_message
+    client.on_publish = on_publish
+    client.username_pw_set(mqtt_username, mqtt_password)
+    client.connect(mqtt_address, mqtt_port, 60)
     client.loop_forever()
 
 
-client = mqtt.Client()
 mqttThread = threading.Thread(target=mqttRun)
 
 
-def on_connect(mqttclient, userdata, flags, rc):
-    print("Connected with result code " + str(rc))
+def registerUser(login, password):
+    if len(DatabaseManager.checkUser(login)) != 0:
+        return False
+    DatabaseManager.addUser(login, password)
+    return True
 
 
-def on_message(mqttclient, userdata, msg):
-    # print(msg.topic + " " + str(msg.payload))
-    pass
+def authorizeUser(login, password):
+    if len(DatabaseManager.getUser(login, password)) != 0:
+        token = secrets.token_hex(20)
+        sessionTokens.append(token)
+        return token
+    else:
+        return 0
+
+
+@get('/')
+def index():
+    client.publish('hello', 'hello world')
+    return 'Hello world'
 
 
 @post('/send')
@@ -28,11 +53,86 @@ def send():
     client.publish(topic, body['code'])
 
 
+@post('/register')
+def register():
+    body = request.json
+    registered = registerUser(body['login'], body['password'])
+    _response = {'error': '' if registered else 'User already registered'}
+    return HTTPResponse(status=200, body=json.dumps(_response))
+
+
+@post('/auth')
+def auth():
+    body = request.json
+    token = authorizeUser(body['login'], body['password'])
+    _response = {'error': '' if token != 0 else 'Incorrect user data', 'token': token}
+    return HTTPResponse(status=200, body=json.dumps(_response))
+
+
+@post('/smartthings')
+def smartthings():
+    f = open('log.txt', 'a')
+    body = request.json
+    print('--------------------------------------------')
+    print(body)
+    print('--------------------------------------------')
+    if body['lifecycle'] == 'CONFIGURATION':
+        phase = body['configurationData']['phase']
+        if phase == 'INITIALIZE':
+            response.add_header('content-type', 'application/json')
+            return HTTPResponse(status=200, body="""{
+      "configurationData": {
+        "initialize": {
+          "name": "Remote Control",
+          "description": "Remote Control",
+          "id": "app",
+          "permissions": ["r:rules:*", "w:rules:*" ],
+          "firstPageId": "1"
+        }
+      }
+    }""")
+        if phase == 'PAGE':
+            response.add_header('content-type', 'application/json')
+            return HTTPResponse(status=200, body="""{
+      "configurationData": {
+        "page": {
+          "pageId": "1",
+          "name": "Remote Control",
+          "nextPageId": null,
+          "previousPageId": null,
+          "complete": true,
+          "sections": [
+            {
+              "name": "Remote Control",
+              "settings": [
+              ]
+            }
+          ]
+        }
+      }
+    }""")
+    if body['lifecycle'] == 'INSTALL':
+        return HTTPResponse(status=200, body="""{
+        "installData" : {}
+        }""")
+    if body['lifecycle'] == 'UPDATE':
+        return HTTPResponse(status=200, body="""{
+        "updateData" : {}
+        }""")
+
+    # log = str(datetime.datetime.now()) + ' POST /send ' + str(response.status_code) + '\n'
+    # log += 'Id: ' + str(body['id']) + '\n' + 'Code: ' + body['code'] + '\n' + 'Encoding: ' + body['encoding'] + '\n'
+    # print(log, file=f)
+    # print(log)
+    # topic = "remoteControl/devices/{id}/code/{encoding}Controller".format(id=body['id'], encoding=body['encoding'])
+    # client.publish(topic, body['code'])
+    # print('Topic: ' + topic + ' Code: ' + body['code'], file=f)
+    # print('Topic: ' + topic + ' Code: ' + body['code'])
+
+
+mqttThread.start()
+DatabaseManager.createTables()
 if __name__ == "__main__":
-    client.on_connect = on_connect
-    client.on_message = on_message
-    client.username_pw_set('xxxxxxxxx', 'xxxxxxxxx')
-    mqttThread.start()
-    run(host='127.0.0.1', port=8080, debug=True, reloader=True)
+    run(host='127.0.0.1', port=50200, debug=True, reloader=True)
 else:
     application = default_app()
