@@ -1,3 +1,5 @@
+import time
+
 from bottle import run, request, response, post, get, default_app, HTTPResponse
 import paho.mqtt.client as mqtt
 import threading
@@ -21,6 +23,15 @@ def mqttRun():
     client.username_pw_set(mqtt_username, mqtt_password)
     client.connect(mqtt_address, mqtt_port, 60)
     client.loop_forever()
+
+
+def sendSequence(commands):
+    print('executing script')
+    for command in commands:
+        for i in range(0, int(command['count'])):
+            client.publish("remoteControl/devices/{id}/code/{encoding}Controller"
+                           .format(id=command['id'], encoding=command['encoding']), json.dumps(command['code']))
+            time.sleep(int(command['delay'])/1000)
 
 
 mqttThread = threading.Thread(target=mqttRun)
@@ -74,13 +85,13 @@ def auth():
 @post('/script')
 def addScript():
     body = request.json
-    if not sessionTokens.__contains__(body['token']):
-        return HTTPResponse(status=401)
+    # if not sessionTokens.__contains__(body['token']):
+    #     return HTTPResponse(status=401)
     split = re.split(';', body['sequence'])
-    isValid = len(split) >= 4 and len(split) % 4 == 0
+    isValid = len(split) >= 5 and len(split) % 5 == 0
     if isValid:
         DatabaseManager.addScript(body['name'], body['userId'], body['sequence'])
-    _response = {'parsed': split, 'valid': isValid, 'error' : '' if isValid else 'Invalid sequence'}
+    _response = {'parsed': split, 'valid': isValid, 'error': '' if isValid else 'Invalid sequence'}
     return HTTPResponse(status=200, body=json.dumps(_response))
 
 
@@ -90,14 +101,12 @@ def executeScript():
     sequence = DatabaseManager.getScript(body['id'])
     split = re.split(';', sequence[0])
     commands = []
-    for i in range(0, len(split), 4):
-        command = {'id': split[i], 'code': split[i + 1], 'encoding': split[i + 2], 'count': split[i + 3]}
+    for i in range(0, len(split), 5):
+        command = {'id': split[i], 'code': split[i + 1], 'encoding': split[i + 2], 'count': split[i + 3],
+                   'delay': split[i + 4]}
         commands.append(command)
-    for command in commands:
-        # topic = "remoteControl/devices/{id}/code/{encoding}Controller".format(id=body['id'], encoding=body['encoding'])
-        for i in range(0, int(command['count'])):
-            client.publish("remoteControl/devices/{id}/code/{encoding}Controller"
-                           .format(id=command['id'], encoding=command['encoding']), command['code'])
+    scriptThread = threading.Thread(target=sendSequence, args=[commands])
+    scriptThread.start()
     _response = {"sequence": sequence, "commands": commands}
     return HTTPResponse(status=200, body=json.dumps(_response))
 
