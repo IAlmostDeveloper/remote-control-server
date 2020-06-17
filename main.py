@@ -30,7 +30,7 @@ def sendSequence(commands):
     for command in commands:
         for i in range(0, int(command['count'])):
             client.publish("remoteControl/devices/{id}/code/{encoding}Controller"
-                           .format(id=command['id'], encoding=command['encoding']), json.dumps(command['code']))
+                           .format(id=command['id'], encoding=command['encoding']), command['code'])
             time.sleep(int(command['delay'])/1000)
 
 
