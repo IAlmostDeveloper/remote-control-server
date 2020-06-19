@@ -76,9 +76,10 @@ def addController():
         return HTTPResponse(status=401)
     name = body['name']
     userId = DatabaseManager.getUserId(body['user'])
+    controllerId = body['controllerId']
     encoding = body['encoding']
     buttons = body['buttons']
-    _response = {'error': DatabaseManager.addController(name, userId, encoding, buttons)}
+    _response = {'error': DatabaseManager.addController(name, userId, controllerId, encoding, buttons)}
     return HTTPResponse(status=200, body=json.dumps(_response))
 
 
@@ -115,6 +116,26 @@ def send():
         return HTTPResponse(status=401)
     topic = "remoteControl/devices/{id}/code/{encoding}".format(id=body['id'], encoding=body['encoding'])
     client.publish(topic, body['code'])
+    return HTTPResponse(status=200)
+
+
+@post('/receive')
+def receiveCode():
+    body = request.json
+    requestTopic = body['requestTopic']
+    responseTopic = body['responseTopic']
+    client.subscribe(responseTopic)
+    client.publish(requestTopic, responseTopic)
+    _response = ''
+
+    def sendReceivedCode(mqttclient, userdata, msg):
+        nonlocal _response
+        _response = str(msg.payload.decode())
+
+    client.on_message = sendReceivedCode
+    while True:
+        if _response != '':
+            return HTTPResponse(status=200, body=_response)
 
 
 @post('/register')

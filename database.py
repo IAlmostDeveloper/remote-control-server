@@ -23,6 +23,7 @@ class DatabaseManager:
             id integer primary key,
             name text,
             userId integer,
+            controllerId integer,
             encoding text,
             buttons text
             )""")
@@ -55,11 +56,12 @@ class DatabaseManager:
         conn.commit()
 
     @staticmethod
-    def addController(name, userId, encoding, buttons):
+    def addController(name, userId, controllerId, encoding, buttons):
         try:
-            cursor.execute("insert into controllers(name, userId, encoding, buttons)"
-                           "values ('{name}', '{userId}', '{encoding}', '{buttons}')"
-                           .format(name=name, userId=userId, encoding=encoding, buttons=buttons))
+            cursor.execute("insert into controllers(name, userId, controllerId, encoding, buttons)"
+                           "values ('{name}', '{userId}', '{controllerId}', '{encoding}', '{buttons}')"
+                           .format(name=name, userId=userId, controllerId=controllerId, encoding=encoding,
+                                   buttons=buttons))
             conn.commit()
         except sqlite3.IntegrityError as e:
             return str(e)
