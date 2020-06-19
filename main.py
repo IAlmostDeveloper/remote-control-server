@@ -12,8 +12,6 @@ import re
 
 client = mqtt.Client()
 
-sessionTokens = []
-
 
 def mqttRun():
     client.on_connect = on_connect
@@ -29,9 +27,9 @@ def sendSequence(commands):
     print('executing script')
     for command in commands:
         for i in range(0, int(command['count'])):
-            client.publish("remoteControl/devices/{id}/code/{encoding}Controller"
+            client.publish("remoteControl/devices/{id}/code/{encoding}"
                            .format(id=command['id'], encoding=command['encoding']), command['code'])
-            time.sleep(int(command['delay'])/1000)
+            time.sleep(int(command['delay']) / 1000)
 
 
 mqttThread = threading.Thread(target=mqttRun)
@@ -47,10 +45,10 @@ def registerUser(login, password):
 def authorizeUser(login, password):
     if len(DatabaseManager.getUser(login, password)) != 0:
         token = secrets.token_hex(20)
-        sessionTokens.append(token)
+        DatabaseManager.addSession(login, token)
         return token
     else:
-        return 0
+        return "0"
 
 
 @get('/')
@@ -59,10 +57,51 @@ def index():
     return 'Hello world'
 
 
+@get('/controllers')
+def controllers():
+    token = request.query['token']
+    if not DatabaseManager.checkSession(token):
+        return HTTPResponse(status=401)
+    userId = DatabaseManager.getUserId(request.query['user'])
+    result = DatabaseManager.getUserControllers(userId)
+    _response = {"controllers": list(result)}
+    return HTTPResponse(status=200, body=json.dumps(_response))
+
+
+@post('/add/controller')
+def addController():
+    body = request.json
+    token = body['token']
+    if not DatabaseManager.checkSession(token):
+        return HTTPResponse(status=401)
+    name = body['name']
+    userId = DatabaseManager.getUserId(body['user'])
+    encoding = body['encoding']
+    buttons = body['buttons']
+    DatabaseManager.addController(name, userId, encoding, buttons)
+    return HTTPResponse(status=200)
+
+
+@post('/update/controller')
+def updateController():
+    body = request.json
+    token = body['token']
+    if not DatabaseManager.checkSession(token):
+        return HTTPResponse(status=401)
+    name = body['name']
+    userId = DatabaseManager.getUserId(body['user'])
+    buttons = body['buttons']
+    DatabaseManager.updateController(name, userId, buttons)
+    return HTTPResponse(status=200)
+
+
 @post('/send')
 def send():
     body = request.json
-    topic = "remoteControl/devices/{id}/code/{encoding}Controller".format(id=body['id'], encoding=body['encoding'])
+    token = body['token']
+    if not DatabaseManager.checkSession(token):
+        return HTTPResponse(status=401)
+    topic = "remoteControl/devices/{id}/code/{encoding}".format(id=body['id'], encoding=body['encoding'])
     client.publish(topic, body['code'])
 
 
@@ -77,16 +116,18 @@ def register():
 @post('/auth')
 def auth():
     body = request.json
+    print(body)
     token = authorizeUser(body['login'], body['password'])
-    _response = {'error': '' if token != 0 else 'Incorrect user data', 'token': token}
+    _response = {'error': '' if token != "0" else 'Incorrect user data', 'token': token}
     return HTTPResponse(status=200, body=json.dumps(_response))
 
 
 @post('/script')
 def addScript():
     body = request.json
-    # if not sessionTokens.__contains__(body['token']):
-    #     return HTTPResponse(status=401)
+    token = body['token']
+    if not DatabaseManager.checkSession(token):
+        return HTTPResponse(status=401)
     split = re.split(';', body['sequence'])
     isValid = len(split) >= 5 and len(split) % 5 == 0
     if isValid:
@@ -98,6 +139,9 @@ def addScript():
 @post('/execute')
 def executeScript():
     body = request.json
+    token = body['token']
+    if not DatabaseManager.checkSession(token):
+        return HTTPResponse(status=401)
     sequence = DatabaseManager.getScript(body['id'])
     split = re.split(';', sequence[0])
     commands = []

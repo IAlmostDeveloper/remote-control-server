@@ -13,6 +13,18 @@ class DatabaseManager:
             login text unique,
             password text
             )""")
+            cursor.execute("""create table sessions(
+            id integer primary key,
+            login text,
+            token text
+            )""")
+            cursor.execute("""create table controllers(
+            id integer primary key,
+            name text,
+            userId integer,
+            encoding text,
+            buttons text
+            )""")
             cursor.execute("""create table scripts(
             id integer primary key,
             name text,
@@ -41,6 +53,20 @@ class DatabaseManager:
         conn.commit()
 
     @staticmethod
+    def addController(name, userId, encoding, buttons):
+        cursor.execute("insert into controllers(name, userId, encoding, buttons)"
+                       "values ('{name}', '{userId}', '{encoding}', '{buttons}')"
+                       .format(name=name, userId=userId, encoding=encoding, buttons=buttons))
+        conn.commit()
+
+    @staticmethod
+    def addSession(login, token):
+        cursor.execute("insert into sessions(login, token)"
+                       "values('{login}', '{token}')"
+                       .format(login=login, token=token))
+        conn.commit()
+
+    @staticmethod
     def updateUser(id, login, password):
         cursor.execute("update users set login='{login}', "
                        "password='{password}' where id='{id}'"
@@ -48,8 +74,20 @@ class DatabaseManager:
         conn.commit()
 
     @staticmethod
+    def updateController(name, userId, buttons):
+        cursor.execute("update controllers set buttons='{buttons}' where name='{name}' and userId='{userId}'"
+                       .format(buttons=buttons, name=name, userId=userId))
+        conn.commit()
+
+    @staticmethod
     def deleteUser(login):
         cursor.execute("delete from users where login='{login}'".format(login=login))
+        conn.commit()
+
+    @staticmethod
+    def deleteController(name, userId):
+        cursor.execute("delete from controllers where name='{name}' and userId='{userId}'"
+                       .format(name=name, userId=userId))
         conn.commit()
 
     @staticmethod
@@ -76,10 +114,22 @@ class DatabaseManager:
         cursor.execute("select id from users where login='{login}'"
                        .format(login=login))
         conn.commit()
-        return cursor.fetchone()
+        return cursor.fetchone()[0]
 
     @staticmethod
     def getScript(id):
         cursor.execute("select sequence from scripts where id='{id}'".format(id=id))
         conn.commit()
         return cursor.fetchone()
+
+    @staticmethod
+    def getUserControllers(userId):
+        cursor.execute("select * from controllers where userId='{userId}'".format(userId=userId))
+        conn.commit()
+        return cursor.fetchall()
+
+    @staticmethod
+    def checkSession(token):
+        cursor.execute("select login from sessions where token='{token}'".format(token=token))
+        conn.commit()
+        return cursor.fetchall != 0
