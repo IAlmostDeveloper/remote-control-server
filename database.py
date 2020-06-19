@@ -1,6 +1,7 @@
 import sqlite3
 
 conn = sqlite3.connect('SqliteDB.db')
+conn.row_factory = sqlite3.Row
 cursor = conn.cursor()
 
 
@@ -31,6 +32,7 @@ class DatabaseManager:
             userId integer,
             sequence text
             )""")
+            cursor.execute("create unique index controller_unique on controllers(name, userId)")
         conn.commit()
 
     @staticmethod
@@ -54,10 +56,14 @@ class DatabaseManager:
 
     @staticmethod
     def addController(name, userId, encoding, buttons):
-        cursor.execute("insert into controllers(name, userId, encoding, buttons)"
-                       "values ('{name}', '{userId}', '{encoding}', '{buttons}')"
-                       .format(name=name, userId=userId, encoding=encoding, buttons=buttons))
-        conn.commit()
+        try:
+            cursor.execute("insert into controllers(name, userId, encoding, buttons)"
+                           "values ('{name}', '{userId}', '{encoding}', '{buttons}')"
+                           .format(name=name, userId=userId, encoding=encoding, buttons=buttons))
+            conn.commit()
+        except sqlite3.IntegrityError as e:
+            return str(e)
+        return ''
 
     @staticmethod
     def addSession(login, token):
@@ -114,7 +120,11 @@ class DatabaseManager:
         cursor.execute("select id from users where login='{login}'"
                        .format(login=login))
         conn.commit()
-        return cursor.fetchone()[0]
+        result = list(cursor.fetchall())
+        if len(result) != 0:
+            return list(result[0])[0]
+        else:
+            return -1
 
     @staticmethod
     def getScript(id):
@@ -132,4 +142,4 @@ class DatabaseManager:
     def checkSession(token):
         cursor.execute("select login from sessions where token='{token}'".format(token=token))
         conn.commit()
-        return cursor.fetchall != 0
+        return len(cursor.fetchall()) != 0

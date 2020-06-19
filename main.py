@@ -64,7 +64,7 @@ def controllers():
         return HTTPResponse(status=401)
     userId = DatabaseManager.getUserId(request.query['user'])
     result = DatabaseManager.getUserControllers(userId)
-    _response = {"controllers": list(result)}
+    _response = {"controllers": [dict(x) for x in result]}
     return HTTPResponse(status=200, body=json.dumps(_response))
 
 
@@ -78,8 +78,8 @@ def addController():
     userId = DatabaseManager.getUserId(body['user'])
     encoding = body['encoding']
     buttons = body['buttons']
-    DatabaseManager.addController(name, userId, encoding, buttons)
-    return HTTPResponse(status=200)
+    _response = {'error': DatabaseManager.addController(name, userId, encoding, buttons)}
+    return HTTPResponse(status=200, body=json.dumps(_response))
 
 
 @post('/update/controller')
@@ -91,8 +91,20 @@ def updateController():
     name = body['name']
     userId = DatabaseManager.getUserId(body['user'])
     buttons = body['buttons']
-    DatabaseManager.updateController(name, userId, buttons)
-    return HTTPResponse(status=200)
+    _response = {'error': DatabaseManager.updateController(name, userId, buttons)}
+    return HTTPResponse(status=200, body=json.dumps(_response))
+
+
+@post('/delete/controller')
+def deleteController():
+    body = request.json
+    token = body['token']
+    if not DatabaseManager.checkSession(token):
+        return HTTPResponse(status=401)
+    name = body['name']
+    userId = DatabaseManager.getUserId(body['user'])
+    _response = {'error': DatabaseManager.deleteController(name, userId)}
+    return HTTPResponse(status=200, body=json.dumps(_response))
 
 
 @post('/send')
