@@ -150,6 +150,12 @@ class DatabaseManager:
         return cursor.fetchone()
 
     @staticmethod
+    def getUserScripts(userId):
+        cursor.execute("select * from scripts where userId='{userId}'".format(userId=userId))
+        conn.commit()
+        return cursor.fetchall()
+
+    @staticmethod
     def getUserControllers(userId):
         cursor.execute("select * from controllers where userId='{userId}'".format(userId=userId))
         conn.commit()
@@ -163,7 +169,7 @@ class DatabaseManager:
         if len(result) != 0:
             return list(result[0])[0]
         else:
-            return -1
+            return ''
 
     @staticmethod
     def checkSession(token):

@@ -138,6 +138,7 @@ def receiveCode():
     _response = {'key': key}
     return HTTPResponse(status=200, body=json.dumps(_response))
 
+
 @get('/receivedcode')
 def getReceivedCode():
     token = request.query['token']
@@ -163,6 +164,16 @@ def auth():
     print(body)
     token = authorizeUser(body['login'], body['password'])
     _response = {'error': '' if token != "0" else 'Incorrect user data', 'token': token}
+    return HTTPResponse(status=200, body=json.dumps(_response))
+
+
+@get('/userscripts')
+def userScripts():
+    token = request.query['token']
+    if not DatabaseManager.checkSession(token):
+        return HTTPResponse(status=401)
+    userId = DatabaseManager.getUserId(request.query['user'])
+    _response = {'scripts': [dict(x) for x in DatabaseManager.getUserScripts(userId)]}
     return HTTPResponse(status=200, body=json.dumps(_response))
 
 
