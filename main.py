@@ -126,16 +126,27 @@ def receiveCode():
     responseTopic = body['responseTopic']
     client.subscribe(responseTopic)
     client.publish(requestTopic, responseTopic)
-    _response = ''
+    key = secrets.token_hex(20)
 
-    def sendReceivedCode(mqttclient, userdata, msg):
-        nonlocal _response
-        _response = str(msg.payload.decode())
+    def addCodeToDb(mqttclient, userdata, msg):
+        print('code received')
+        code = json.loads(msg.payload.decode())['code']
+        print(code)
+        DatabaseManager.addReceivedCode(key, str(code))
 
-    client.on_message = sendReceivedCode
-    while True:
-        if _response != '':
-            return HTTPResponse(status=200, body=_response)
+    client.on_message = addCodeToDb
+    _response = {'key': key}
+    return HTTPResponse(status=200, body=json.dumps(_response))
+
+@get('/receivedcode')
+def getReceivedCode():
+    token = request.query['token']
+    if not DatabaseManager.checkSession(token):
+        return HTTPResponse(status=401)
+    key = request.query['key']
+    code = DatabaseManager.getReceivedCode(key)
+    _response = {'code': code}
+    return HTTPResponse(status=200, body=_response)
 
 
 @post('/register')

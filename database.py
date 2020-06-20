@@ -19,6 +19,11 @@ class DatabaseManager:
             login text,
             token text
             )""")
+            cursor.execute("""create table receivedbuttoncodes(
+            id integer primary key,
+            key text unique,
+            code text
+            )""")
             cursor.execute("""create table controllers(
             id integer primary key,
             name text,
@@ -73,6 +78,16 @@ class DatabaseManager:
                        "values('{login}', '{token}')"
                        .format(login=login, token=token))
         conn.commit()
+
+    @staticmethod
+    def addReceivedCode(key, code):
+        connection = sqlite3.connect('SqliteDB.db')
+        connection.row_factory = sqlite3.Row
+        c = connection.cursor()
+        c.execute("insert into receivedbuttoncodes(key, code)"
+                  "values('{key}', '{code}')"
+                  .format(key=key, code=code))
+        connection.commit()
 
     @staticmethod
     def updateUser(id, login, password):
@@ -139,6 +154,16 @@ class DatabaseManager:
         cursor.execute("select * from controllers where userId='{userId}'".format(userId=userId))
         conn.commit()
         return cursor.fetchall()
+
+    @staticmethod
+    def getReceivedCode(key):
+        cursor.execute("select code from receivedbuttoncodes where key='{key}'".format(key=key))
+        conn.commit()
+        result = list(cursor.fetchall())
+        if len(result) != 0:
+            return list(result[0])[0]
+        else:
+            return -1
 
     @staticmethod
     def checkSession(token):
