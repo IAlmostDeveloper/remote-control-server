@@ -204,16 +204,16 @@ def executeScript():
     if not DatabaseManager.checkSession(token):
         return HTTPResponse(status=401)
     sequence = DatabaseManager.getScript(body['id'])
-    split = re.split(';', sequence[0])
     commands = []
-    for i in range(0, len(split), 5):
-        command = {'id': split[i], 'code': split[i + 1], 'encoding': split[i + 2], 'count': split[i + 3],
-                   'delay': split[i + 4]}
-        commands.append(command)
+    if len(sequence) != 0:
+        split = re.split(';', sequence[0])
+        for i in range(0, len(split), 5):
+            command = {'id': split[i], 'code': split[i + 1], 'encoding': split[i + 2], 'count': split[i + 3],
+                       'delay': split[i + 4]}
+            commands.append(command)
     scriptThread = threading.Thread(target=sendSequence, args=[commands])
     scriptThread.start()
-    _response = {"sequence": sequence, "commands": commands}
-    return HTTPResponse(status=200, body=json.dumps(_response))
+    return HTTPResponse(status=200)
 
 
 @post('/smartthings')
