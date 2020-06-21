@@ -185,9 +185,15 @@ def addScript():
         return HTTPResponse(status=401)
     split = re.split(';', body['sequence'])
     isValid = len(split) >= 5 and len(split) % 5 == 0
+    error = ''
     if isValid:
-        DatabaseManager.addScript(body['name'], body['userId'], body['sequence'])
-    _response = {'parsed': split, 'valid': isValid, 'error': '' if isValid else 'Invalid sequence'}
+        userId = DatabaseManager.getUserId(body['user'])
+        if userId != -1:
+            DatabaseManager.addScript(body['name'], userId, body['sequence'])
+            error = 'User does not exists'
+    else:
+        error = 'Invalid sequence'
+    _response = {'parsed': split, 'valid': isValid, 'error': error}
     return HTTPResponse(status=200, body=json.dumps(_response))
 
 
