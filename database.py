@@ -114,6 +114,12 @@ class DatabaseManager:
         conn.commit()
 
     @staticmethod
+    def deleteScript(userId, name):
+        cursor.execute("delete from scripts where name='{name}' and userId='{userId}'"
+                       .format(name=name, userId=userId))
+        conn.commit()
+
+    @staticmethod
     def getUsers():
         cursor.execute("select * from users")
         conn.commit()

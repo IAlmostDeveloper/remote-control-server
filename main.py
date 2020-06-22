@@ -190,11 +190,23 @@ def addScript():
         userId = DatabaseManager.getUserId(body['user'])
         if userId != -1:
             DatabaseManager.addScript(body['name'], userId, body['sequence'])
+        else:
             error = 'User does not exists'
     else:
         error = 'Invalid sequence'
     _response = {'parsed': split, 'valid': isValid, 'error': error}
     return HTTPResponse(status=200, body=json.dumps(_response))
+
+
+@post('/delete/script')
+def deleteScript():
+    body = request.json
+    token = body['token']
+    if not DatabaseManager.checkSession(token):
+        return HTTPResponse(status=401)
+    userId = DatabaseManager.getUserId(body['user'])
+    DatabaseManager.deleteScript(userId, body['name'])
+    return HTTPResponse(status=200)
 
 
 @post('/execute')
