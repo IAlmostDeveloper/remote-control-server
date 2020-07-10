@@ -1,14 +1,33 @@
 import time
 
-from bottle import run, request, response, post, get, default_app, HTTPResponse
+from bottle import run, Bottle, request, response, post, get, default_app, HTTPResponse
 import paho.mqtt.client as mqtt
 import threading
 import json
+import bottle
 from database import DatabaseManager
 from mqttclient import on_disconnect, on_connect, on_message, on_publish
 from connections import mqtt_address, mqtt_port, mqtt_username, mqtt_password
 import secrets
 import re
+from truckpad.bottle.cors import CorsPlugin
+# the decorator
+def cors(func):
+    def wrapper(*args, **kwargs):
+        bottle.response.set_header("Access-Control-Allow-Origin", "*")
+        bottle.response.set_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        bottle.response.set_header("Access-Control-Allow-Headers", "Origin, Content-Type")
+
+        # skip the function if it is not needed
+        if bottle.request.method == 'OPTIONS':
+            return
+
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+app = bottle.app()
 
 client = mqtt.Client()
 
@@ -150,7 +169,8 @@ def getReceivedCode():
     return HTTPResponse(status=200, body=_response)
 
 
-@post('/register')
+@cors
+@app.post('/register')
 def register():
     body = request.json
     registered = registerUser(body['login'], body['password'])
@@ -158,13 +178,17 @@ def register():
     return HTTPResponse(status=200, body=json.dumps(_response))
 
 
-@post('/auth')
+@cors
+@app.route('/auth', method=['POST', 'OPTIONS'])
 def auth():
+    # body = json.load(request.body
     body = request.json
-    print(body)
+    print(request.body.read().decode('UTF-8'))
     token = authorizeUser(body['login'], body['password'])
     _response = {'error': '' if token != "0" else 'Incorrect user data', 'token': token}
-    return HTTPResponse(status=200, body=json.dumps(_response))
+    # return HTTPResponse(status=200, body=json.dumps(_response))
+    response.headers['Content-Type'] = 'application/json'
+    return json.dumps(_response)
 
 
 @get('/userscripts')
@@ -228,70 +252,7 @@ def executeScript():
     return HTTPResponse(status=200)
 
 
-@post('/smartthings')
-def smartthings():
-    f = open('log.txt', 'a')
-    body = request.json
-    print('--------------------------------------------')
-    print(body)
-    print('--------------------------------------------')
-    if body['lifecycle'] == 'CONFIGURATION':
-        phase = body['configurationData']['phase']
-        if phase == 'INITIALIZE':
-            response.add_header('content-type', 'application/json')
-            return HTTPResponse(status=200, body="""{
-      "configurationData": {
-        "initialize": {
-          "name": "Remote Control",
-          "description": "Remote Control",
-          "id": "app",
-          "permissions": ["r:rules:*", "w:rules:*" ],
-          "firstPageId": "1"
-        }
-      }
-    }""")
-        if phase == 'PAGE':
-            response.add_header('content-type', 'application/json')
-            return HTTPResponse(status=200, body="""{
-      "configurationData": {
-        "page": {
-          "pageId": "1",
-          "name": "Remote Control",
-          "nextPageId": null,
-          "previousPageId": null,
-          "complete": true,
-          "sections": [
-            {
-              "name": "Remote Control",
-              "settings": [
-              ]
-            }
-          ]
-        }
-      }
-    }""")
-    if body['lifecycle'] == 'INSTALL':
-        return HTTPResponse(status=200, body="""{
-        "installData" : {}
-        }""")
-    if body['lifecycle'] == 'UPDATE':
-        return HTTPResponse(status=200, body="""{
-        "updateData" : {}
-        }""")
-
-    # log = str(datetime.datetime.now()) + ' POST /send ' + str(response.status_code) + '\n'
-    # log += 'Id: ' + str(body['id']) + '\n' + 'Code: ' + body['code'] + '\n' + 'Encoding: ' + body['encoding'] + '\n'
-    # print(log, file=f)
-    # print(log)
-    # topic = "remoteControl/devices/{id}/code/{encoding}Controller".format(id=body['id'], encoding=body['encoding'])
-    # client.publish(topic, body['code'])
-    # print('Topic: ' + topic + ' Code: ' + body['code'], file=f)
-    # print('Topic: ' + topic + ' Code: ' + body['code'])
-
-
-mqttThread.start()
+app.install(CorsPlugin(origins=['http://list.of.allowed.domains.com', 'https://another.domain.org']))
+# mqttThread.start()
 DatabaseManager.createTables()
-if __name__ == "__main__":
-    run(host='127.0.0.1', port=50200, debug=True, reloader=True)
-else:
-    application = default_app()
+run(app)
