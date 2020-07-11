@@ -6,7 +6,8 @@ http server for remote control project
 ### Зависимости для сборки:
 
 - Python 3
-- Bottle
+- Flask
+- Flask_CORS
 
 ### Запуск сервера:
 ```python3 main.py```

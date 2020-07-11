@@ -1,35 +1,29 @@
 import time
-
-from bottle import run, Bottle, request, response, post, get, default_app, HTTPResponse
 import paho.mqtt.client as mqtt
 import threading
 import json
-import bottle
 from database import DatabaseManager
 from mqttclient import on_disconnect, on_connect, on_message, on_publish
 from connections import mqtt_address, mqtt_port, mqtt_username, mqtt_password
 import secrets
 import re
-from truckpad.bottle.cors import CorsPlugin
-# the decorator
-def cors(func):
-    def wrapper(*args, **kwargs):
-        bottle.response.set_header("Access-Control-Allow-Origin", "*")
-        bottle.response.set_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        bottle.response.set_header("Access-Control-Allow-Headers", "Origin, Content-Type")
+from flask import Flask, request, jsonify, abort
+from flask_cors import CORS
 
-        # skip the function if it is not needed
-        if bottle.request.method == 'OPTIONS':
-            return
-
-        return func(*args, **kwargs)
-
-    return wrapper
-
-
-app = bottle.app()
+app = Flask(__name__)
+CORS(app)
 
 client = mqtt.Client()
+
+
+@app.errorhandler(403)
+def resource_not_found(e):
+    return jsonify(error=str(e)), 403
+
+
+@app.errorhandler(401)
+def resource_not_found(e):
+    return jsonify(error=str(e)), 401
 
 
 def mqttRun():
@@ -70,77 +64,77 @@ def authorizeUser(login, password):
         return "0"
 
 
-@get('/')
+@app.route('/')
 def index():
     client.publish('hello', 'hello world')
     return 'Hello world'
 
 
-@get('/controllers')
+@app.route('/controllers')
 def controllers():
-    token = request.query['token']
+    token = request.args.get('token')
     if not DatabaseManager.checkSession(token):
-        return HTTPResponse(status=401)
-    userId = DatabaseManager.getUserId(request.query['user'])
+        abort(401, description="Access denied")
+    userId = DatabaseManager.getUserId(request.args.get('user'))
     result = DatabaseManager.getUserControllers(userId)
     _response = {"controllers": [dict(x) for x in result]}
-    return HTTPResponse(status=200, body=json.dumps(_response))
+    return jsonify(_response)
 
 
-@post('/add/controller')
+@app.route('/add/controller', methods=['POST'])
 def addController():
-    body = request.json
+    body = request.get_json()
     token = body['token']
     if not DatabaseManager.checkSession(token):
-        return HTTPResponse(status=401)
+        abort(401, description="Access denied")
     name = body['name']
     userId = DatabaseManager.getUserId(body['user'])
     controllerId = body['controllerId']
     encoding = body['encoding']
     buttons = body['buttons']
     _response = {'error': DatabaseManager.addController(name, userId, controllerId, encoding, buttons)}
-    return HTTPResponse(status=200, body=json.dumps(_response))
+    return json.dumps(_response)
 
 
-@post('/update/controller')
+@app.route('/update/controller', methods=['POST'])
 def updateController():
-    body = request.json
+    body = request.get_json()
     token = body['token']
     if not DatabaseManager.checkSession(token):
-        return HTTPResponse(status=401)
+        abort(401, description="Access denied")
     name = body['name']
     userId = DatabaseManager.getUserId(body['user'])
     buttons = body['buttons']
     _response = {'error': DatabaseManager.updateController(name, userId, buttons)}
-    return HTTPResponse(status=200, body=json.dumps(_response))
+    return json.dumps(_response)
 
 
-@post('/delete/controller')
+@app.route('/delete/controller', methods=['POST'])
 def deleteController():
-    body = request.json
+    body = request.get_json()
     token = body['token']
     if not DatabaseManager.checkSession(token):
-        return HTTPResponse(status=401)
+        abort(401, description="Access denied")
     name = body['name']
     userId = DatabaseManager.getUserId(body['user'])
     _response = {'error': DatabaseManager.deleteController(name, userId)}
-    return HTTPResponse(status=200, body=json.dumps(_response))
+    return json.dumps(_response)
 
 
-@post('/send')
+@app.route('/send', methods=['POST'])
 def send():
-    body = request.json
+    body = request.get_json()
     token = body['token']
     if not DatabaseManager.checkSession(token):
-        return HTTPResponse(status=401)
+        abort(401, description="Access denied")
     topic = "remoteControl/devices/{id}/code/{encoding}".format(id=body['id'], encoding=body['encoding'])
     client.publish(topic, body['code'])
-    return HTTPResponse(status=200)
+    return ""
 
 
-@post('/receive')
+@app.route('/receive', methods=['POST'])
 def receiveCode():
-    body = request.json
+    body = request.get_json()
     requestTopic = body['requestTopic']
     responseTopic = body['responseTopic']
     client.subscribe(responseTopic)
@@ -155,58 +149,53 @@ def receiveCode():
 
     client.on_message = addCodeToDb
     _response = {'key': key}
-    return HTTPResponse(status=200, body=json.dumps(_response))
-
-
-@get('/receivedcode')
-def getReceivedCode():
-    token = request.query['token']
-    if not DatabaseManager.checkSession(token):
-        return HTTPResponse(status=401)
-    key = request.query['key']
-    code = DatabaseManager.getReceivedCode(key)
-    _response = {'code': code}
-    return HTTPResponse(status=200, body=_response)
-
-
-@cors
-@app.post('/register')
-def register():
-    body = request.json
-    registered = registerUser(body['login'], body['password'])
-    _response = {'error': '' if registered else 'User already registered'}
-    return HTTPResponse(status=200, body=json.dumps(_response))
-
-
-@cors
-@app.route('/auth', method=['POST', 'OPTIONS'])
-def auth():
-    # body = json.load(request.body
-    body = request.json
-    print(request.body.read().decode('UTF-8'))
-    token = authorizeUser(body['login'], body['password'])
-    _response = {'error': '' if token != "0" else 'Incorrect user data', 'token': token}
-    # return HTTPResponse(status=200, body=json.dumps(_response))
-    response.headers['Content-Type'] = 'application/json'
     return json.dumps(_response)
 
 
-@get('/userscripts')
-def userScripts():
-    token = request.query['token']
+@app.route('/receivedcode')
+def getReceivedCode():
+    token = request.args.get('token')
     if not DatabaseManager.checkSession(token):
-        return HTTPResponse(status=401)
-    userId = DatabaseManager.getUserId(request.query['user'])
+        abort(401, description="Access denied")
+    key = request.args.get('key')
+    code = DatabaseManager.getReceivedCode(key)
+    _response = {'code': code}
+    return _response
+
+
+@app.route('/register', methods=['POST'])
+def register():
+    body = request.get_json()
+    registered = registerUser(body['login'], body['password'])
+    _response = {'error': '' if registered else 'User already registered'}
+    return json.dumps(_response)
+
+
+@app.route('/auth', methods=['POST'])
+def auth():
+    body = request.get_json()
+    print(body)
+    token = authorizeUser(body['login'], body['password'])
+    _response = {'error': '' if token != "0" else 'Incorrect user data', 'token': token}
+    return json.dumps(_response)
+
+
+@app.route('/userscripts')
+def userScripts():
+    token = request.args.get('token')
+    if not DatabaseManager.checkSession(token):
+        abort(401, description="Access denied")
+    userId = DatabaseManager.getUserId(request.arg.get('user'))
     _response = {'scripts': [dict(x) for x in DatabaseManager.getUserScripts(userId)]}
-    return HTTPResponse(status=200, body=json.dumps(_response))
+    return json.dumps(_response)
 
 
-@post('/script')
+@app.route('/script', methods=['POST'])
 def addScript():
-    body = request.json
+    body = request.get_json()
     token = body['token']
     if not DatabaseManager.checkSession(token):
-        return HTTPResponse(status=401)
+        abort(401, description="Access denied")
     split = re.split(';', body['sequence'])
     isValid = len(split) >= 5 and len(split) % 5 == 0
     error = ''
@@ -219,26 +208,25 @@ def addScript():
     else:
         error = 'Invalid sequence'
     _response = {'parsed': split, 'valid': isValid, 'error': error}
-    return HTTPResponse(status=200, body=json.dumps(_response))
+    return json.dumps(_response)
 
 
-@post('/delete/script')
+@app.route('/delete/script', methods=['POST'])
 def deleteScript():
-    body = request.json
+    body = request.get_json()
     token = body['token']
     if not DatabaseManager.checkSession(token):
-        return HTTPResponse(status=401)
+        abort(401, description="Access denied")
     userId = DatabaseManager.getUserId(body['user'])
     DatabaseManager.deleteScript(userId, body['name'])
-    return HTTPResponse(status=200)
 
 
-@post('/execute')
+@app.route('/execute', methods=['POST'])
 def executeScript():
-    body = request.json
+    body = request.get_json()
     token = body['token']
     if not DatabaseManager.checkSession(token):
-        return HTTPResponse(status=401)
+        abort(401, description="Access denied")
     sequence = DatabaseManager.getScript(body['id'])
     commands = []
     if len(sequence) != 0:
@@ -249,10 +237,11 @@ def executeScript():
             commands.append(command)
     scriptThread = threading.Thread(target=sendSequence, args=[commands])
     scriptThread.start()
-    return HTTPResponse(status=200)
+    return ""
 
 
-app.install(CorsPlugin(origins=['http://list.of.allowed.domains.com', 'https://another.domain.org']))
 # mqttThread.start()
 DatabaseManager.createTables()
-run(app)
+
+if __name__ == '__main__':
+    app.run(debug=True, port=8080)
