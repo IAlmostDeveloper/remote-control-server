@@ -8,6 +8,7 @@ http server for remote control project
 - Python 3
 - Flask
 - Flask_CORS
+- Flagger
 
 ### Запуск сервера:
 ```python3 main.py```
