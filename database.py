@@ -43,41 +43,51 @@ class DatabaseManager:
 
     @staticmethod
     def clearTable(tableName):
+        c = sqlite3.connect('SqliteDB.db')
+        cursor = c.cursor()
         cursor.execute("delete * from '{tableName}'".format(tableName=tableName))
-        conn.commit()
+        c.commit()
 
     @staticmethod
     def addUser(login, password):
+        c = sqlite3.connect('SqliteDB.db')
+        cursor = c.cursor()
         cursor.execute("insert into users(login, password) "
                        "values ('{login}' , '{password}')"
                        .format(login=login, password=password))
-        conn.commit()
+        c.commit()
 
     @staticmethod
     def addScript(name, userId, sequence):
+        c = sqlite3.connect('SqliteDB.db')
+        cursor = c.cursor()
         cursor.execute("insert into scripts(name, userId, sequence)"
                        "values ('{name}', '{userId}', '{sequence}')"
                        .format(name=name, userId=userId, sequence=sequence))
-        conn.commit()
+        c.commit()
 
     @staticmethod
     def addController(name, userId, controllerId, encoding, buttons):
         try:
+            c = sqlite3.connect('SqliteDB.db')
+            cursor = c.cursor()
             cursor.execute("insert into controllers(name, userId, controllerId, encoding, buttons)"
                            "values ('{name}', '{userId}', '{controllerId}', '{encoding}', '{buttons}')"
                            .format(name=name, userId=userId, controllerId=controllerId, encoding=encoding,
                                    buttons=buttons))
-            conn.commit()
+            c.commit()
         except sqlite3.IntegrityError as e:
             return str(e)
         return ''
 
     @staticmethod
     def addSession(login, token):
+        c = sqlite3.connect('SqliteDB.db')
+        cursor = c.cursor()
         cursor.execute("insert into sessions(login, token)"
                        "values('{login}', '{token}')"
                        .format(login=login, token=token))
-        conn.commit()
+        c.commit()
 
     @staticmethod
     def addReceivedCode(key, code):
@@ -91,58 +101,76 @@ class DatabaseManager:
 
     @staticmethod
     def updateUser(id, login, password):
+        c = sqlite3.connect('SqliteDB.db')
+        cursor = c.cursor()
         cursor.execute("update users set login='{login}', "
                        "password='{password}' where id='{id}'"
                        .format(id=id, login=login, password=password))
-        conn.commit()
+        c.commit()
 
     @staticmethod
     def updateController(name, userId, buttons):
+        c = sqlite3.connect('SqliteDB.db')
+        cursor = c.cursor()
         cursor.execute("update controllers set buttons='{buttons}' where name='{name}' and userId='{userId}'"
                        .format(buttons=buttons, name=name, userId=userId))
-        conn.commit()
+        c.commit()
 
     @staticmethod
     def deleteUser(login):
+        c = sqlite3.connect('SqliteDB.db')
+        cursor = c.cursor()
         cursor.execute("delete from users where login='{login}'".format(login=login))
-        conn.commit()
+        c.commit()
 
     @staticmethod
     def deleteController(name, userId):
+        c = sqlite3.connect('SqliteDB.db')
+        cursor = c.cursor()
         cursor.execute("delete from controllers where name='{name}' and userId='{userId}'"
                        .format(name=name, userId=userId))
-        conn.commit()
+        c.commit()
 
     @staticmethod
     def deleteScript(userId, name):
+        c = sqlite3.connect('SqliteDB.db')
+        cursor = c.cursor()
         cursor.execute("delete from scripts where name='{name}' and userId='{userId}'"
                        .format(name=name, userId=userId))
-        conn.commit()
+        c.commit()
 
     @staticmethod
     def getUsers():
+        c = sqlite3.connect('SqliteDB.db')
+        cursor = c.cursor()
         cursor.execute("select * from users")
-        conn.commit()
+        c.commit()
         return cursor.fetchall()
 
     @staticmethod
     def checkUser(login):
+        c = sqlite3.connect('SqliteDB.db')
+        cursor = c.cursor()
         cursor.execute("select * from users where login='{login}'".format(login=login))
-        conn.commit()
+        c.commit()
         return cursor.fetchall()
 
     @staticmethod
     def getUser(login, password):
+        c = sqlite3.connect('SqliteDB.db')
+        cursor = c.cursor()
         cursor.execute("select * from users where login='{login}' and password='{password}'"
                        .format(login=login, password=password))
-        conn.commit()
+        c.commit()
         return cursor.fetchall()
 
     @staticmethod
     def getUserId(login):
+        c = sqlite3.connect('SqliteDB.db')
+        cursor = c.cursor()
         cursor.execute("select id from users where login='{login}'"
                        .format(login=login))
-        conn.commit()
+        c.commit()
         result = list(cursor.fetchall())
         if len(result) != 0:
             return list(result[0])[0]
@@ -151,26 +179,34 @@ class DatabaseManager:
 
     @staticmethod
     def getScript(id):
+        c = sqlite3.connect('SqliteDB.db')
+        cursor = c.cursor()
         cursor.execute("select sequence from scripts where id='{id}'".format(id=id))
-        conn.commit()
+        c.commit()
         return cursor.fetchone()
 
     @staticmethod
     def getUserScripts(userId):
+        c = sqlite3.connect('SqliteDB.db')
+        cursor = c.cursor()
         cursor.execute("select * from scripts where userId='{userId}'".format(userId=userId))
-        conn.commit()
+        c.commit()
         return cursor.fetchall()
 
     @staticmethod
     def getUserControllers(userId):
+        c = sqlite3.connect('SqliteDB.db')
+        cursor = c.cursor()
         cursor.execute("select * from controllers where userId='{userId}'".format(userId=userId))
-        conn.commit()
+        c.commit()
         return cursor.fetchall()
 
     @staticmethod
     def getReceivedCode(key):
+        c = sqlite3.connect('SqliteDB.db')
+        cursor = c.cursor()
         cursor.execute("select code from receivedbuttoncodes where key='{key}'".format(key=key))
-        conn.commit()
+        c.commit()
         result = list(cursor.fetchall())
         if len(result) != 0:
             return list(result[0])[0]
@@ -179,6 +215,8 @@ class DatabaseManager:
 
     @staticmethod
     def checkSession(token):
+        c = sqlite3.connect('SqliteDB.db')
+        cursor = c.cursor()
         cursor.execute("select login from sessions where token='{token}'".format(token=token))
-        conn.commit()
+        c.commit()
         return len(cursor.fetchall()) != 0

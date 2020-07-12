@@ -9,9 +9,24 @@ import secrets
 import re
 from flask import Flask, request, jsonify, abort
 from flask_cors import CORS
+from flasgger import Swagger, swag_from
 
 app = Flask(__name__)
 CORS(app)
+app.config["SWAGGER"] = {'title': "Swagger-UI", "uiversion": 2}
+swagger_config = {
+    "headers": [],
+    "specs": [{
+        "endpoint": "apispec_1",
+        "route": "/apispec_1.json",
+        "rule_filter": lambda rule: True,
+        "model_filter": lambda tag: True
+    }],
+    "static_url_path": "/flasgger_static",
+    "swagger_ui": True,
+    "specs_route": "/docs/"
+}
+swagger = Swagger(app, config=swagger_config)
 
 client = mqtt.Client()
 
@@ -164,6 +179,7 @@ def getReceivedCode():
 
 
 @app.route('/register', methods=['POST'])
+@swag_from("swagger_config.yml")
 def register():
     body = request.get_json()
     registered = registerUser(body['login'], body['password'])
@@ -172,6 +188,7 @@ def register():
 
 
 @app.route('/auth', methods=['POST'])
+@swag_from("swagger_config.yml")
 def auth():
     body = request.get_json()
     print(body)

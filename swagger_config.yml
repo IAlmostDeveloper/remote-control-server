@@ -1,0 +1,23 @@
+summary: "Authentication"
+description: "Auth request"
+consumes:
+  - "application/json"
+produces:
+  - "application/json"
+parameters:
+  - in : "body"
+    name: "body"
+    description: "Accepts login and password"
+    required: true
+    schema:
+      type: "object"
+      properties:
+        login:
+          type: "string"
+          example: "user123"
+        password:
+          type: "string"
+          example: "password123"
+responses:
+  200:
+    description: "Ok"
