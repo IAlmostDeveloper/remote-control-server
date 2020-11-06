@@ -1,19 +1,20 @@
+import json
+import re
+import secrets
+import threading
 import time
 
-from bottle import run, request, response, post, get, default_app, HTTPResponse
 import paho.mqtt.client as mqtt
-import threading
-import json
+from bottle import run, request, post, get, default_app, HTTPResponse
+
+from connections import mqtt_address, mqtt_port, mqtt_username, mqtt_password
 from database import DatabaseManager
 from mqttclient import on_disconnect, on_connect, on_message, on_publish
-from connections import mqtt_address, mqtt_port, mqtt_username, mqtt_password
-import secrets
-import re
 
 client = mqtt.Client()
 
 
-def mqttRun():
+def mqtt_run():
     client.on_connect = on_connect
     client.on_disconnect = on_disconnect
     client.on_message = on_message
@@ -23,7 +24,7 @@ def mqttRun():
     client.loop_forever()
 
 
-def sendSequence(commands):
+def send_sequence(commands):
     print('executing script')
     for command in commands:
         for i in range(0, int(command['count'])):
@@ -32,20 +33,20 @@ def sendSequence(commands):
             time.sleep(int(command['delay']) / 1000)
 
 
-mqttThread = threading.Thread(target=mqttRun)
+mqtt_thread = threading.Thread(target=mqtt_run)
 
 
-def registerUser(login, password):
-    if len(DatabaseManager.checkUser(login)) != 0:
+def register_user(login, password):
+    if len(DatabaseManager.check_user(login)) != 0:
         return False
-    DatabaseManager.addUser(login, password)
+    DatabaseManager.add_user(login, password)
     return True
 
 
-def authorizeUser(login, password):
-    if len(DatabaseManager.getUser(login, password)) != 0:
+def authorize_user(login, password):
+    if len(DatabaseManager.get_user(login, password)) != 0:
         token = secrets.token_hex(20)
-        DatabaseManager.addSession(login, token)
+        DatabaseManager.add_session(login, token)
         return token
     else:
         return "0"
@@ -60,51 +61,51 @@ def index():
 @get('/controllers')
 def controllers():
     token = request.query['token']
-    if not DatabaseManager.checkSession(token):
+    if not DatabaseManager.check_session(token):
         return HTTPResponse(status=401)
-    userId = DatabaseManager.getUserId(request.query['user'])
-    result = DatabaseManager.getUserControllers(userId)
+    user_id = DatabaseManager.get_user_id(request.query['user'])
+    result = DatabaseManager.get_user_controllers(user_id)
     _response = {"controllers": [dict(x) for x in result]}
     return HTTPResponse(status=200, body=json.dumps(_response))
 
 
 @post('/add/controller')
-def addController():
+def add_controller():
     body = request.json
     token = body['token']
-    if not DatabaseManager.checkSession(token):
+    if not DatabaseManager.check_session(token):
         return HTTPResponse(status=401)
     name = body['name']
-    userId = DatabaseManager.getUserId(body['user'])
-    controllerId = body['controllerId']
+    user_id = DatabaseManager.get_user_id(body['user'])
+    controller_id = body['controller_id']
     encoding = body['encoding']
     buttons = body['buttons']
-    _response = {'error': DatabaseManager.addController(name, userId, controllerId, encoding, buttons)}
+    _response = {'error': DatabaseManager.add_controller(name, user_id, controller_id, encoding, buttons)}
     return HTTPResponse(status=200, body=json.dumps(_response))
 
 
 @post('/update/controller')
-def updateController():
+def update_controller():
     body = request.json
     token = body['token']
-    if not DatabaseManager.checkSession(token):
+    if not DatabaseManager.check_session(token):
         return HTTPResponse(status=401)
     name = body['name']
-    userId = DatabaseManager.getUserId(body['user'])
+    user_id = DatabaseManager.get_user_id(body['user'])
     buttons = body['buttons']
-    _response = {'error': DatabaseManager.updateController(name, userId, buttons)}
+    _response = {'error': DatabaseManager.update_controller(name, user_id, buttons)}
     return HTTPResponse(status=200, body=json.dumps(_response))
 
 
 @post('/delete/controller')
-def deleteController():
+def delete_controller():
     body = request.json
     token = body['token']
-    if not DatabaseManager.checkSession(token):
+    if not DatabaseManager.check_session(token):
         return HTTPResponse(status=401)
     name = body['name']
-    userId = DatabaseManager.getUserId(body['user'])
-    _response = {'error': DatabaseManager.deleteController(name, userId)}
+    user_id = DatabaseManager.get_user_id(body['user'])
+    _response = {'error': DatabaseManager.delete_controller(name, user_id)}
     return HTTPResponse(status=200, body=json.dumps(_response))
 
 
@@ -112,7 +113,7 @@ def deleteController():
 def send():
     body = request.json
     token = body['token']
-    if not DatabaseManager.checkSession(token):
+    if not DatabaseManager.check_session(token):
         return HTTPResponse(status=401)
     topic = "remoteControl/devices/{id}/code/{encoding}".format(id=body['id'], encoding=body['encoding'])
     client.publish(topic, body['code'])
@@ -120,32 +121,32 @@ def send():
 
 
 @post('/receive')
-def receiveCode():
+def receive_code():
     body = request.json
-    requestTopic = body['requestTopic']
-    responseTopic = body['responseTopic']
-    client.subscribe(responseTopic)
-    client.publish(requestTopic, responseTopic)
+    request_topic = body['request_topic']
+    response_topic = body['response_topic']
+    client.subscribe(response_topic)
+    client.publish(request_topic, response_topic)
     key = secrets.token_hex(20)
 
-    def addCodeToDb(mqttclient, userdata, msg):
+    def add_code_to_db(mqttclient, userdata, msg):
         print('code received')
         code = json.loads(msg.payload.decode())['code']
         print(code)
-        DatabaseManager.addReceivedCode(key, str(code))
+        DatabaseManager.add_received_code(key, str(code))
 
-    client.on_message = addCodeToDb
+    client.on_message = add_code_to_db
     _response = {'key': key}
     return HTTPResponse(status=200, body=json.dumps(_response))
 
 
 @get('/receivedcode')
-def getReceivedCode():
+def get_received_code():
     token = request.query['token']
-    if not DatabaseManager.checkSession(token):
+    if not DatabaseManager.check_session(token):
         return HTTPResponse(status=401)
     key = request.query['key']
-    code = DatabaseManager.getReceivedCode(key)
+    code = DatabaseManager.get_received_code(key)
     _response = {'code': code}
     return HTTPResponse(status=200, body=_response)
 
@@ -153,7 +154,7 @@ def getReceivedCode():
 @post('/register')
 def register():
     body = request.json
-    registered = registerUser(body['login'], body['password'])
+    registered = register_user(body['login'], body['password'])
     _response = {'error': '' if registered else 'User already registered'}
     return HTTPResponse(status=200, body=json.dumps(_response))
 
@@ -162,60 +163,60 @@ def register():
 def auth():
     body = request.json
     print(body)
-    token = authorizeUser(body['login'], body['password'])
+    token = authorize_user(body['login'], body['password'])
     _response = {'error': '' if token != "0" else 'Incorrect user data', 'token': token}
     return HTTPResponse(status=200, body=json.dumps(_response))
 
 
 @get('/userscripts')
-def userScripts():
+def user_scripts():
     token = request.query['token']
-    if not DatabaseManager.checkSession(token):
+    if not DatabaseManager.check_session(token):
         return HTTPResponse(status=401)
-    userId = DatabaseManager.getUserId(request.query['user'])
-    _response = {'scripts': [dict(x) for x in DatabaseManager.getUserScripts(userId)]}
+    user_id = DatabaseManager.get_user_id(request.query['user'])
+    _response = {'scripts': [dict(x) for x in DatabaseManager.get_user_scripts(user_id)]}
     return HTTPResponse(status=200, body=json.dumps(_response))
 
 
 @post('/script')
-def addScript():
+def add_script():
     body = request.json
     token = body['token']
-    if not DatabaseManager.checkSession(token):
+    if not DatabaseManager.check_session(token):
         return HTTPResponse(status=401)
     split = re.split(';', body['sequence'])
-    isValid = len(split) >= 5 and len(split) % 5 == 0
+    is_valid = len(split) >= 5 and len(split) % 5 == 0
     error = ''
-    if isValid:
-        userId = DatabaseManager.getUserId(body['user'])
-        if userId != -1:
-            DatabaseManager.addScript(body['name'], userId, body['sequence'])
+    if is_valid:
+        user_id = DatabaseManager.get_user_id(body['user'])
+        if user_id != -1:
+            DatabaseManager.add_script(body['name'], user_id, body['sequence'])
         else:
             error = 'User does not exists'
     else:
         error = 'Invalid sequence'
-    _response = {'parsed': split, 'valid': isValid, 'error': error}
+    _response = {'parsed': split, 'valid': is_valid, 'error': error}
     return HTTPResponse(status=200, body=json.dumps(_response))
 
 
 @post('/delete/script')
-def deleteScript():
+def delete_script():
     body = request.json
     token = body['token']
-    if not DatabaseManager.checkSession(token):
+    if not DatabaseManager.check_session(token):
         return HTTPResponse(status=401)
-    userId = DatabaseManager.getUserId(body['user'])
-    DatabaseManager.deleteScript(userId, body['name'])
+    user_id = DatabaseManager.get_user_id(body['user'])
+    DatabaseManager.delete_script(user_id, body['name'])
     return HTTPResponse(status=200)
 
 
 @post('/execute')
-def executeScript():
+def execute_script():
     body = request.json
     token = body['token']
-    if not DatabaseManager.checkSession(token):
+    if not DatabaseManager.check_session(token):
         return HTTPResponse(status=401)
-    sequence = DatabaseManager.getScript(body['id'])
+    sequence = DatabaseManager.get_script(body['id'])
     commands = []
     if len(sequence) != 0:
         split = re.split(';', sequence[0])
@@ -223,74 +224,13 @@ def executeScript():
             command = {'id': split[i], 'code': split[i + 1], 'encoding': split[i + 2], 'count': split[i + 3],
                        'delay': split[i + 4]}
             commands.append(command)
-    scriptThread = threading.Thread(target=sendSequence, args=[commands])
-    scriptThread.start()
+    script_thread = threading.Thread(target=send_sequence, args=[commands])
+    script_thread.start()
     return HTTPResponse(status=200)
 
 
-@post('/smartthings')
-def smartthings():
-    f = open('log.txt', 'a')
-    body = request.json
-    print('--------------------------------------------')
-    print(body)
-    print('--------------------------------------------')
-    if body['lifecycle'] == 'CONFIGURATION':
-        phase = body['configurationData']['phase']
-        if phase == 'INITIALIZE':
-            response.add_header('content-type', 'application/json')
-            return HTTPResponse(status=200, body="""{
-      "configurationData": {
-        "initialize": {
-          "name": "Remote Control",
-          "description": "Remote Control",
-          "id": "app",
-          "permissions": ["r:rules:*", "w:rules:*" ],
-          "firstPageId": "1"
-        }
-      }
-    }""")
-        if phase == 'PAGE':
-            response.add_header('content-type', 'application/json')
-            return HTTPResponse(status=200, body="""{
-      "configurationData": {
-        "page": {
-          "pageId": "1",
-          "name": "Remote Control",
-          "nextPageId": null,
-          "previousPageId": null,
-          "complete": true,
-          "sections": [
-            {
-              "name": "Remote Control",
-              "settings": [
-              ]
-            }
-          ]
-        }
-      }
-    }""")
-    if body['lifecycle'] == 'INSTALL':
-        return HTTPResponse(status=200, body="""{
-        "installData" : {}
-        }""")
-    if body['lifecycle'] == 'UPDATE':
-        return HTTPResponse(status=200, body="""{
-        "updateData" : {}
-        }""")
-
-    # log = str(datetime.datetime.now()) + ' POST /send ' + str(response.status_code) + '\n'
-    # log += 'Id: ' + str(body['id']) + '\n' + 'Code: ' + body['code'] + '\n' + 'Encoding: ' + body['encoding'] + '\n'
-    # print(log, file=f)
-    # print(log)
-    # topic = "remoteControl/devices/{id}/code/{encoding}Controller".format(id=body['id'], encoding=body['encoding'])
-    # client.publish(topic, body['code'])
-    # print('Topic: ' + topic + ' Code: ' + body['code'], file=f)
-    # print('Topic: ' + topic + ' Code: ' + body['code'])
-
-
-mqttThread.start()
-DatabaseManager.createTables()
+mqtt_thread.start()
+DatabaseManager.create_tables()
 if __name__ == "__main__":
     run(host='0.0.0.0', port=8080, debug=True, reloader=True)
 else:
