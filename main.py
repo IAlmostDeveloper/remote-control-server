@@ -292,6 +292,6 @@ def smartthings():
 mqttThread.start()
 DatabaseManager.createTables()
 if __name__ == "__main__":
-    run(host='127.0.0.1', port=50200, debug=True, reloader=True)
+    run(host='0.0.0.0', port=8080, debug=True, reloader=True)
 else:
     application = default_app()

@@ -1,4 +1,4 @@
-mqtt_username = 'xxxxxxxxxx'
-mqtt_password = 'xxxxxxxxxx'
-mqtt_address = 'xxxxxxxxxxx'
+mqtt_username = ''
+mqtt_password = ''
+mqtt_address = 'mqtt'
 mqtt_port = 1883
